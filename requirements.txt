@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pydantic
+langchain
+langchain-community
+langchain-ollama
+PyMuPDF
+faiss-cpu
+sentence-transformers
+transformers
+langchain-huggingface
+huggingface_hub[hf_xet]
+hf_xet
+einops
