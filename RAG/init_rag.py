@@ -98,15 +98,11 @@ def init_model_rag(model_embedding="bge-m3", k_chunk=4, size_chunk=2000, data_di
     llm = OllamaLLM(model=model_llm)
 
     custom_prompt = PromptTemplate.from_template("""
-        Tu es un assistant intelligent. Utilise uniquement les documents suivants pour répondre à la question de l'utilisateur.
-                                                 
         Documents :
         {context}
 
         Question : {question}
-                                                                                             
-        Ta réponse doit être en texte brut, sans mise en forme particulière (pas de style, pas de puces, pas de titres). 
-        Donne une réponse complète si le sujet l'exige. Ne spécul pas si tu ne sais pas. Si les documents ne contiennent rien, indique-le simplement.
+        Réponds de manière précise et concise.
     """)
 
     logging.info(f"[READY] RAG prêt en {time.time() - t0:.2f}s")

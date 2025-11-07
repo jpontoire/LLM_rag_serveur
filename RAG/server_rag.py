@@ -55,18 +55,37 @@ def log_request_txt(prompt: str, answer: str, exec_time: float, source_docs=None
 def ask(query: Query):
     t0 = time.time()
     
+    # --- Mesure 1 : Embedding & Retrieval ---
+    t1 = time.time()
     docs = retriever.invoke(query.prompt)
+    exec_time_retrieval = time.time() - t1
+    # ----------------------------------------
+    
     docs_reversed = list(reversed(docs))
 
     context = "\n\n".join(doc.page_content for doc in docs_reversed)
     
     prompt = custom_prompt.format(context=context, question=query.prompt)
 
+    # --- Mesure 2 : LLM Generation ---
+    t2 = time.time()
     # Appel du modèle
     answer = llm.invoke(prompt)
+    exec_time_llm = time.time() - t2
+    # ----------------------------------
 
-    exec_time = time.time() - t0
-    print(f"[TIME] Requête traitée en {exec_time:.2f} sec")
+    exec_time_total = time.time() - t0
+    
+    # Affichage des temps détaillés
+    print(f"[TIME] Requête traitée en {exec_time_total:.2f} sec")
+    print(f"       -> Retrieval (Embedding + Search): {exec_time_retrieval:.2f} sec")
+    print(f"       -> LLM Generation: {exec_time_llm:.2f} sec")
 
-    log_request_txt(query.prompt, answer, exec_time, docs)
-    return {"answer": answer, "execution_time_sec": round(exec_time, 2)}
+    # Mise à jour de la fonction de log et du retour
+    log_request_txt(query.prompt, answer, exec_time_total, docs)
+    return {
+        "answer": answer,
+        "execution_time_sec": round(exec_time_total, 2),
+        "time_retrieval_sec": round(exec_time_retrieval, 2),
+        "time_llm_sec": round(exec_time_llm, 2)
+    }
