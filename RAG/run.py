@@ -24,7 +24,14 @@ def main():
     print(f"       K_CHUNK={args.kchunk}")
     print(f"       SIZE_CHUNK={args.sizechunk}")
     print(f"       EMBED={args.modelembedding} (via Ollama)")
-    uvicorn.run("server_rag:app", host=host, port=port, reload=False)
+    uvicorn.run(
+    "server_rag:app",
+    host=host,
+    port=port,
+    reload=False,
+    workers=1,
+    loop="asyncio"
+)
 
 if __name__ == "__main__":
     main()

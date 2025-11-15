@@ -98,12 +98,20 @@ def init_model_rag(model_embedding="bge-m3", k_chunk=4, size_chunk=2000, data_di
     llm = OllamaLLM(model=model_llm)
 
     custom_prompt = PromptTemplate.from_template("""
-        Documents :
-        {context}
+    **RÔLE :** Tu es un assistant RAG amical et serviable. Ton objectif principal est de répondre aux questions en utilisant le contexte fourni par les 'Documents' et en tenant compte de l'historique de la conversation.
 
-        Question : {question}
-        Réponds de manière précise et concise.
-    """)
+    **HISTORIQUE DE LA CONVERSATION :**
+    {history}
+
+    **INSTRUCTIONS :**
+    1.  Réponds en te basant sur le contexte fourni par les documents et l'historique.
+    2.  Si la question est clairement en dehors du champ d'application des documents ou de la conversation, réponds-y directement comme un chatbot standard sans mentionner les documents et sans donner de message de refus.
+
+    Documents :
+    {context}
+
+    Question : {question}
+""")
 
     logging.info(f"[READY] RAG prêt en {time.time() - t0:.2f}s")
     return retriever, llm, custom_prompt, k_chunk, model_embedding

@@ -1,10 +1,12 @@
-#server_rag.py
+# server_rag.py
 from fastapi import FastAPI
 from pydantic import BaseModel
 from init_rag import init_model_rag
 import os
 import time
 from datetime import datetime
+
+GLOBAL_CONVERSATION_HISTORY = ""
 
 app = FastAPI()
 
@@ -23,9 +25,15 @@ size = int(os.getenv("SIZE_CHUNK"))
 me = str(os.getenv("MODEL_EMBEDDING"))
 print("[SERV-RAG] Initialisation SERVER RAG...")
 t_init = time.time()
-retriever, llm, custom_prompt, k_chunk, model_embedding = init_model_rag(data_dir="DATA", k_chunk=k, model_embedding=me, size_chunk=size)
+retriever, llm, custom_prompt, k_chunk, model_embedding = init_model_rag(
+    data_dir="DATA",
+    k_chunk=k,
+    model_embedding=me,
+    size_chunk=size
+)
 exec_time_init = time.time() - t_init
-print(f"[INIT] Chargement du modèle RAG en {exec_time_init:.2f} sec")
+print(f"[INIT] Modèle RAG chargé en {exec_time_init:.2f} sec")
+
 
 def log_request_txt(prompt: str, answer: str, exec_time: float, source_docs=None):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -33,7 +41,7 @@ def log_request_txt(prompt: str, answer: str, exec_time: float, source_docs=None
 
     with open(filename, "w", encoding="utf-8") as f:
         f.write(f"Time : {timestamp}\n")
-        f.write(f"Durée de la requete : {exec_time:.2f} sec\n")
+        f.write(f"Durée de la requête : {exec_time:.2f} sec\n")
         f.write(f"EMBEDDING : {model_embedding}\n")
         f.write(f"K_CHUNK : {k_chunk}\n")
         f.write(f"SIZE_CHUNK : {size}\n")
@@ -50,42 +58,46 @@ def log_request_txt(prompt: str, answer: str, exec_time: float, source_docs=None
                 f.write(f"\n[{i+1}] Source : {source}\n")
                 f.write(f"Extrait : {extrait}...\n")
 
-# === Endpoint FastAPI ===
+
 @app.post("/query")
-def ask(query: Query):
+async def ask(query: Query):
+    """
+    Version 100% NON-streaming :
+    - compatibilité totale avec Unreal Engine
+    - renvoie un JSON complet
+    - format simple et fiable
+    """
+    result = compute_rag(query.prompt)
+    return result
+
+
+def compute_rag(prompt):
+    global GLOBAL_CONVERSATION_HISTORY
     t0 = time.time()
-    
-    # --- Mesure 1 : Embedding & Retrieval ---
-    t1 = time.time()
-    docs = retriever.invoke(query.prompt)
-    exec_time_retrieval = time.time() - t1
-    # ----------------------------------------
-    
+
+    # Retrieval
+    docs = retriever.invoke(prompt)
     docs_reversed = list(reversed(docs))
-
     context = "\n\n".join(doc.page_content for doc in docs_reversed)
-    
-    prompt = custom_prompt.format(context=context, question=query.prompt)
 
-    # --- Mesure 2 : LLM Generation ---
-    t2 = time.time()
-    # Appel du modèle
-    answer = llm.invoke(prompt)
-    exec_time_llm = time.time() - t2
-    # ----------------------------------
+    # Build prompt
+    prompt_to_llm = custom_prompt.format(
+        context=context,
+        question=prompt,
+        history=GLOBAL_CONVERSATION_HISTORY,
+    )
+
+    # LLM
+    answer = llm.invoke(prompt_to_llm)
 
     exec_time_total = time.time() - t0
-    
-    # Affichage des temps détaillés
-    print(f"[TIME] Requête traitée en {exec_time_total:.2f} sec")
-    print(f"       -> Retrieval (Embedding + Search): {exec_time_retrieval:.2f} sec")
-    print(f"       -> LLM Generation: {exec_time_llm:.2f} sec")
 
-    # Mise à jour de la fonction de log et du retour
-    log_request_txt(query.prompt, answer, exec_time_total, docs)
+    # Logs
+    log_request_txt(prompt, answer, exec_time_total, docs)
+
+    GLOBAL_CONVERSATION_HISTORY += f"Utilisateur: {prompt}\nAssistant: {answer}\n"
+
     return {
         "answer": answer,
-        "execution_time_sec": round(exec_time_total, 2),
-        "time_retrieval_sec": round(exec_time_retrieval, 2),
-        "time_llm_sec": round(exec_time_llm, 2)
+        "execution_time_sec": round(exec_time_total, 2)
     }
