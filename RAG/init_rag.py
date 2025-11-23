@@ -34,84 +34,99 @@ def try_load_text_safe(path):
         logging.error(f"[TXT][UTF-8 FAIL] {path} — {e}")
     return []
 
-def init_model_rag(model_embedding="bge-m3", k_chunk=4, size_chunk=2000, data_dir="RAG/data", model_llm="llama3.1:8b"):
+
+def init_model_rag(model_embedding="bge-m3", k_chunk=20, size_chunk=5000, data_dir="RAG/data", model_llm="llama3.1:8b"):
+    # NOTE : J'ai passé k_chunk par défaut à 20 ci-dessus
     t0 = time.time()
 
-    print(f"[EMBED] Utilisation du modèle Ollama pour les embeddings : {model_embedding}")
+    print(f"[EMBED] Modèle : {model_embedding}")
     embeddings = OllamaEmbeddings(model=model_embedding)
 
+    # On garde size_chunk dans le path pour gérer le cache si tu changes d'avis
     base_path = os.path.join("RAG", "CACHE", model_embedding.replace("/", "_"))
     index_path = os.path.join(base_path, "SIZECHUNK", str(size_chunk))
-    os.makedirs(base_path, exist_ok=True)
-
-    all_docs = []
-    error_count = 0
-
+    
     if os.path.exists(index_path):
-        print(f"[INIT] Index FAISS trouvé pour {index_path}/, chargement...")
+        print(f"[INIT] Chargement index existant...")
         db = FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
     else:
-        print(f"[INIT] Aucun index FAISS pour {index_path}, création en cours...")
-        txt_files = glob.glob(os.path.join(data_dir, "**", "*.txt"), recursive=True)
-        pdf_files = glob.glob(os.path.join(data_dir, "**", "*.pdf"), recursive=True)
+        print(f"[INIT] Création index...")
         csv_files = glob.glob(os.path.join(data_dir, "**", "*.csv"), recursive=True)
-
-        for path in txt_files:
-            docs = try_load_text_safe(path)
-            if docs:
-                all_docs.extend(docs)
-            else:
-                error_count += 1
-                logging.warning(f"[TXT] Échec chargement : {path}")
-
-        for path in pdf_files:
-            try:
-                all_docs.extend(PyMuPDFLoader(path).load())
-            except Exception as e:
-                error_count += 1
-                logging.error(f"[PDF] {path} — {e}")
+        all_docs = []
 
         for path in csv_files:
             try:
-                all_docs.extend(CSVLoader(path).load())
+                # CSVLoader crée automatiquement 1 Document par Ligne
+                # C'est le comportement idéal pour ton cas
+                loader = CSVLoader(file_path=path, encoding="utf-8") 
+                all_docs.extend(loader.load())
             except Exception as e:
-                error_count += 1
-                logging.error(f"[CSV] {path} — {e}")
+                logging.error(f"[CSV] Erreur {path} : {e}")
 
         if not all_docs:
-            logging.critical(f"[ERREUR] Aucun document trouvé dans {data_dir}")
-            raise ValueError("Aucun document exploitable")
+            raise ValueError("Aucun CSV trouvé.")
 
-        print(f"[LOAD] {len(all_docs)} documents chargés, {error_count} erreurs")
-        splitter = RecursiveCharacterTextSplitter(chunk_size=size_chunk, chunk_overlap=100)
+        # Le splitter est ici juste une sécurité ("safety net")
+        # Il ne coupera que si une quête est GIGANTESQUE (>2000 chars)
+        splitter = RecursiveCharacterTextSplitter(chunk_size=size_chunk, chunk_overlap=500)
         chunks = splitter.split_documents(all_docs)
-
-        if not chunks:
-            logging.critical("[SPLIT] Aucun chunk généré.")
-            raise ValueError("Échec split documents")
 
         db = FAISS.from_documents(chunks, embeddings)
         db.save_local(index_path)
-        logging.info(f"[EMBED] Index FAISS créé et sauvegardé ({len(chunks)} chunks)")
 
-    retriever = db.as_retriever(search_kwargs={"k": k_chunk})
-    llm = OllamaLLM(model=model_llm)
+    # CONFIGURATION CRITIQUE POUR CSV
+    # k=20 : On donne 20 quêtes en exemple au LLM (Llama 3.1 encaisse ça facilement)
+    # fetch_k=50 : On en regarde 50 pour choisir les 20 plus variées
+    retriever = db.as_retriever(
+        search_type="mmr", 
+        search_kwargs={
+            "k": k_chunk, 
+            "fetch_k": 50,
+            "lambda_mult": 0.7 
+        }
+    )
+
+    llm = OllamaLLM(model=model_llm, temperature=0.9)
 
     custom_prompt = PromptTemplate.from_template("""
-    **RÔLE :** Tu es un assistant RAG amical et serviable. Ton objectif principal est de répondre aux questions en utilisant le contexte fourni par les 'Documents' et en tenant compte de l'historique de la conversation.
+        **RÔLE :** Tu es un assistant créatif pour des Game Designers. 
+        Ton but est d'inventer de NOUVELLES quêtes uniques et originales en suivant les contraintes de l'utilisateur.
 
-    **HISTORIQUE DE LA CONVERSATION :**
-    {history}
+        **DOCUMENTS DE RÉFÉRENCE (EXEMPLES DE STYLE) :**
+        {context}
 
-    **INSTRUCTIONS :**
-    1.  Réponds en te basant sur le contexte fourni par les documents et l'historique.
-    2.  Si la question est clairement en dehors du champ d'application des documents ou de la conversation, réponds-y directement comme un chatbot standard sans mentionner les documents et sans donner de message de refus.
+        **HISTORIQUE :**
+        {history}
 
-    Documents :
-    {context}
+        **INSTRUCTIONS CRITIQUES :**
+        1. **DISTINCTION FOND ET FORME :** Utilise les 'Documents' UNIQUEMENT pour comprendre la structure (titre, objectifs, format) et le ton (sérieux, drôle, épique).
+        2. **PAS DE COPIE :** N'utilise JAMAIS les noms propres, lieux, factions ou personnages spécifiques présents dans les documents (ex: n'utilise pas "Claire", "Arasaka", "Whiterun", etc. sauf si l'utilisateur le demande).
+        3. **PRIORITÉ À L'UTILISATEUR :** Si l'utilisateur demande des "éléphants dans un monde cyberpunk", c'est ta priorité absolue. Invente une histoire avec des éléphants, même si aucun document n'en parle.
+        4. **ADAPTATION DE L'UNIVERS :** Si les documents viennent de "Skyrim" mais que l'utilisateur demande du "Cyberpunk", garde la structure de la quête Skyrim (Étapes, Récompense) mais change tout le vocabulaire pour qu'il soit futuriste (Épée -> Katana Laser, Potion -> Injecteur).
 
-    Question : {question}
-""")
+        **TÂCHE :**
+        Génère une quête basée sur la demande suivante : "{question}"
+    """)
+
+    # custom_prompt = PromptTemplate.from_template("""
+    #     **RÔLE :** Tu es un assistant RAG amical et serviable. 
+    #     Ton objectif principal est d'aider des développeurs de jeux vidéo à générer des quêtes pour leurs jeux. Pour cela tu disposes d'un échantillon d'exemples de quêtes fournies par les 'Documents'.
+    #     Tu disposes aussi de l'historique de la conversation. Si l'utilisateur te demande par exemple de changer un élément dans une quête, utilise cet historique pour pouvoir lui générer la même quête mais avec les changements qu'il désire.
+
+    #     **HISTORIQUE DE LA CONVERSATION :**
+    #     {history}
+
+    #     **INSTRUCTIONS :**
+    #     1.  Réponds en te basant sur l'historique de ta conversation avec l'utilisateur et le contexte fourni par les documents.
+    #     2.  Si la question est clairement en dehors du champ d'application des documents ou de la conversation, réponds-y directement comme un chatbot standard sans mentionner les documents et sans donner de message de refus.
+    #     3.  Fais une réponse en rapport avec la question posée par l'utilisateur.
+    #     4. Ne mentionne JAMAIS le contenu des documents. Il est seulement là pour que tu puisses voir des exemples de quêtes semblables.
+                                                    
+    #     Documents :
+    #     {context}
+
+    #     Question : {question}
+    # """)
 
     logging.info(f"[READY] RAG prêt en {time.time() - t0:.2f}s")
     return retriever, llm, custom_prompt, k_chunk, model_embedding
