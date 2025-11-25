@@ -87,7 +87,7 @@ def log_request_txt(prompt: str, answer: str, exec_time: float, session_id: str,
                 f.write(f"Extrait : {extrait}...\n")
 
 @app.post("/query")
-async def ask(query: Query, request: Request):
+async def ask(query: Query):
     """
     Endpoint principal compatible Unreal Engine.
     Attend un JSON : {"prompt": "...", "session_id": "..."}
@@ -98,7 +98,7 @@ async def ask(query: Query, request: Request):
 
 def compute_rag(prompt: str, session_id: str):
     t0 = time.time()
-
+    print(f"session id : {session_id}")
     history_context = get_formatted_history(session_id)
     print(f"[{session_id}] Contexte historique injecté ({len(SESSIONS.get(session_id, []))} échanges)")
 

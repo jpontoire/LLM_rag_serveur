@@ -95,7 +95,7 @@ def init_model_rag(model_embedding="bge-m3", k_chunk=20, size_chunk=5000, data_d
         **DOCUMENTS DE RÉFÉRENCE (EXEMPLES DE STYLE) :**
         {context}
 
-        **HISTORIQUE :**
+        **HISTORIQUE DE TA CONVERSATION AVEC L'UTILISATEUR:**
         {history}
 
         **INSTRUCTIONS CRITIQUES :**
