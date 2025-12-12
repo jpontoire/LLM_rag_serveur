@@ -95,17 +95,83 @@ def init_model_rag(model_embedding="bge-m3", k_chunk=20, size_chunk=5000, data_d
         **DOCUMENTS DE RÉFÉRENCE (EXEMPLES DE STYLE) :**
         {context}
 
-        **HISTORIQUE DE TA CONVERSATION AVEC L'UTILISATEUR:**
-        {history}
-
         **INSTRUCTIONS CRITIQUES :**
         1. **DISTINCTION FOND ET FORME :** Utilise les 'Documents' UNIQUEMENT pour comprendre la structure (titre, objectifs, format) et le ton (sérieux, drôle, épique).
         2. **PAS DE COPIE :** N'utilise JAMAIS les noms propres, lieux, factions ou personnages spécifiques présents dans les documents (ex: n'utilise pas "Claire", "Arasaka", "Whiterun", etc. sauf si l'utilisateur le demande).
         3. **PRIORITÉ À L'UTILISATEUR :** Si l'utilisateur demande des "éléphants dans un monde cyberpunk", c'est ta priorité absolue. Invente une histoire avec des éléphants, même si aucun document n'en parle.
         4. **ADAPTATION DE L'UNIVERS :** Si les documents viennent de "Skyrim" mais que l'utilisateur demande du "Cyberpunk", garde la structure de la quête Skyrim (Étapes, Récompense) mais change tout le vocabulaire pour qu'il soit futuriste (Épée -> Katana Laser, Potion -> Injecteur).
+                                                 
+        Afin de t'aider, voici des exemples de questions possibles et de manière de répondre.
+        
+        Exemple 1 :
+        Question : Peux-tu me générer une quête avec des éléphants dans un monde cyberpunk ?
+        Réponse :
+        ### Titre de la Quête : Mémoire Cache Corrompue
+        **Synopsis :** Un gang de bio-hackers a piraté les implants mémoriels des derniers éléphants synthétiques du Neo-Zoo, les rendant hyper-agressifs.
+        **Commanditaire :** Dr. Varma (Cyber-Zoologiste).
+        **Objectifs :**
+        1. Infiltrer l'enclos sécurisé du secteur 7.
+        2. Neutraliser le Matriarche-Alpha (Modèle T-8000) sans la détruire.
+        3. Injecter le virus de réinitialisation dans son port neural.
+        **Récompense :** 5000 Crédits & Plan de fabrication "Peau en Nano-Carbone".
+
+        Exemple 2 :
+        Question : Je veux une quête d'escorte dans un style Western.
+        Réponse :
+        ### Titre de la Quête : La Diligence de la Dernière Chance
+        **Synopsis :** Le Shérif a besoin d'aide pour transporter un prisonnier notoire à travers le Canyon du Coyote, territoire des bandits.
+        **Commanditaire :** Shérif "Old Eye" Jenkins.
+        **Objectifs :**
+        1. Retrouver la diligence au relais de poste avant le coucher du soleil.
+        2. Repousser les vagues de bandits à cheval durant la traversée.
+        3. Livrer le prisonnier vivant à la prison fédérale.
+        **Note de Design :** J'ai utilisé la structure "Escorte de Vaisseau Mère" des documents, mais j'ai remplacé les vaisseaux par une diligence et les lasers par des revolvers.
+
+        Exemple 3 :
+        Question : Crée une quête d'intrigue politique dans un royaume de Fantasy.
+        Réponse :
+        ### Titre de la Quête : Le Sceau du Traître
+        **Synopsis :** Le conseiller du Roi est soupçonné de vendre des secrets au royaume voisin. Le joueur doit trouver des preuves avant le bal royal.
+        **Commanditaire :** La Maîtresse des Espions (PNJ générique).
+        **Objectifs :**
+        1. Voler la clé des appartements du conseiller.
+        2. Trouver la lettre scellée cachée dans son bureau.
+        3. Confronter le conseiller devant la cour sans se faire arrêter.
+        **Récompense :** Dague de l'Ombre & Titre de noblesse.     
+
+        Exemple 4 (Adaptation Science-Fiction vers Médiéval) :
+        Question : J'ai besoin d'une quête de "Sabotage de base ennemie". Mes docs sont de type Star Wars, mais je fais un jeu type Seigneur des Anneaux.
+        Réponse :
+        ### Titre de la Quête : Les Forges de la Montagne de Fer
+        
+        **Synopsis :**
+        L'armée du Seigneur Noir produit des armes de siège à un rythme alarmant. Vous devez infiltrer leur fonderie principale et détruire le mécanisme de soufflerie.
+
+        **Commanditaire :** Capitaine de la Garde Royale.
+        
+        **Étapes de la Mission :**
+        1.  **Infiltration :** Pénétrer dans les mines par les conduits d'aération des Gobelins (Test de Discrétion) ou voler un uniforme d'orc pour passer par la porte principale.
+        2.  **Sabotage :** * Localiser le Grand Soufflet qui alimente les fourneaux.
+            * Verser la "Fiole de Gel Éternel" (donnée par le commanditaire) dans les engrenages.
+        3.  **Fuite :**
+            * L'alarme sonne (Cor de guerre). Le joueur a 5 minutes pour sortir avant que les grilles ne se ferment.
+            * Un mini-boss "Contremaître Ogre" bloque la sortie.
+
+        **Conditions d'Échec :**
+        * Si le joueur est repéré avant le sabotage, le nombre d'ennemis double.
+
+        **Loot :**
+        * Plan de fabrication : Armure en Acier Noir.
+        * Or : 200 pièces.
+
+
+        **HISTORIQUE DE TA CONVERSATION AVEC L'UTILISATEUR:**
+        {history}
 
         **TÂCHE :**
-        Génère une quête basée sur la demande suivante : "{question}"
+        Question : "{question}"
+
+        Réponds naturellement à l'utilisateur. C'est à lui que s'adresse ta réponse. Répond juste à sa demande, ne mentionne rien d'autre (documents, exemples, etc.)                            
     """)
 
     # custom_prompt = PromptTemplate.from_template("""
