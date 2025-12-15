@@ -1,15 +1,13 @@
-# === init_rag_ollama.py ===
 import os
 import glob
 import time
 import logging
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import TextLoader, CSVLoader, PyMuPDFLoader
+from langchain_community.document_loaders import TextLoader, CSVLoader
 from langchain_ollama import OllamaEmbeddings, OllamaLLM
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import PromptTemplate
 
-# === Logging ===
 log_dir = os.path.join("LOGS", "SERVER")
 os.makedirs(log_dir, exist_ok=True)
 
@@ -36,13 +34,11 @@ def try_load_text_safe(path):
 
 
 def init_model_rag(model_embedding="bge-m3", k_chunk=20, size_chunk=5000, data_dir="RAG/data", model_llm="llama3.1:8b"):
-    # NOTE : J'ai passé k_chunk par défaut à 20 ci-dessus
     t0 = time.time()
 
     print(f"[EMBED] Modèle : {model_embedding}")
     embeddings = OllamaEmbeddings(model=model_embedding)
 
-    # On garde size_chunk dans le path pour gérer le cache si tu changes d'avis
     base_path = os.path.join("RAG", "CACHE", model_embedding.replace("/", "_"))
     index_path = os.path.join(base_path, "SIZECHUNK", str(size_chunk))
     
@@ -56,8 +52,6 @@ def init_model_rag(model_embedding="bge-m3", k_chunk=20, size_chunk=5000, data_d
 
         for path in csv_files:
             try:
-                # CSVLoader crée automatiquement 1 Document par Ligne
-                # C'est le comportement idéal pour ton cas
                 loader = CSVLoader(file_path=path, encoding="utf-8") 
                 all_docs.extend(loader.load())
             except Exception as e:
@@ -66,17 +60,12 @@ def init_model_rag(model_embedding="bge-m3", k_chunk=20, size_chunk=5000, data_d
         if not all_docs:
             raise ValueError("Aucun CSV trouvé.")
 
-        # Le splitter est ici juste une sécurité ("safety net")
-        # Il ne coupera que si une quête est GIGANTESQUE (>2000 chars)
         splitter = RecursiveCharacterTextSplitter(chunk_size=size_chunk, chunk_overlap=500)
         chunks = splitter.split_documents(all_docs)
 
         db = FAISS.from_documents(chunks, embeddings)
         db.save_local(index_path)
 
-    # CONFIGURATION CRITIQUE POUR CSV
-    # k=20 : On donne 20 quêtes en exemple au LLM (Llama 3.1 encaisse ça facilement)
-    # fetch_k=50 : On en regarde 50 pour choisir les 20 plus variées
     retriever = db.as_retriever(
         search_type="mmr", 
         search_kwargs={
